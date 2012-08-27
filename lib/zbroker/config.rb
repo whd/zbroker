@@ -17,7 +17,7 @@ module ZBroker::Config
     optparse.parse!
 
     unless File.exists?(file) && File.readable?(file)
-      abort "file #{file} not found or not readable"
+      abort "file #{file} not found or not readable (-f)"
     end
 
     config = YAML::load_file(file) rescue nil

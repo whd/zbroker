@@ -11,6 +11,7 @@ class ZBroker::ZeusBridge
     @resolver = Resolv::DNS.new
     @environments = config['environments']
     @min_capacity = config['capacity']
+    @cache_expiry = config['cache_expiry']
   end
 
   def find_environment (name)
