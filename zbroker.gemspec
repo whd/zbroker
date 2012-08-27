@@ -17,6 +17,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency("rack")
   spec.add_dependency("sinatra")
   spec.add_dependency("json")
+  spec.add_dependency("zeus-api")
 
   spec.files = files
   spec.bindir = "bin"
