@@ -1,0 +1,70 @@
+class ZBroker::Agent
+  attr_reader :timestamp
+
+  def initialize (pool_service)
+    @p = pool_service
+    @pool_data = {} # pool => [active, draining]
+    @lookup = {} # node => pool
+    @timestamp = nil
+    update
+  end
+
+  def drain (node, min_capacity, request_capacity=nil)
+    pool = @lookup[node]
+    active, draining = @pool_data[pool]
+    if draining.member?(node)
+      count = @p.connection_count(node).first
+      if count == 0
+        return {'pool' => pool, 'status' => 'drained'}
+      else
+        return {'pool' => pool, 'status' => 'draining'}
+      end
+    end
+
+    capacity = [min_capacity, (request_capacity||-1)].max
+    if (cap = (active - 1.0) / draining) < capacity
+      res = {
+        'pool' => pool,
+        'status' => 'request_failed',
+        'reason' => 'capacity_limit',
+        'minimum_capacity' => min_capacity,
+        'drained_capacity' => cap
+      }
+      res['request_capacity'] = request_capacity if request_capacity
+      return res
+    else
+      drain_node(pool, node)
+      nactive = active - [node]
+      ndraining = draining + [node]
+      @pool_data[pool] = [nactive, ndraining]
+      # fixme dup
+      return {'pool' => pool, 'status' => 'draining'}
+    end
+  end
+
+  def add (node)
+    pool = @lookup[node]
+    active, draining = @pool_data[pool]
+    @p.undrain_node(pool, node)
+    if draining.include?(node)
+      nactive = active + [node]
+      ndraining = draining - [node]
+      @pool_data[pool] = [nactive, ndraining]
+    end
+    return {'pool' => pool, 'status' => 'added'}
+  end
+
+  def update
+    @pool_data = {}
+    @lookup = {}
+    pools = @p.list
+    pools.each do |pool|
+      nodes = @p.list_nodes(pool).flatten
+      nodes.each {|node| @lookup[node] = pool}
+      draining = @p.list_nodes(pool, :draining).flatten
+      active = nodes - draining
+      @pool_data[pool] = [active, draining]
+    end
+    @timestamp = Time.now
+  end
+end

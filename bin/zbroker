@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+require 'zbroker'
+require "pp"
+
+ZBroker::App.run!
