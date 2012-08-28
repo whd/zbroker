@@ -9,20 +9,20 @@ class ZBroker::Agent
     update
   end
 
+  def _drain_status(pool, node)
+    count = @p.connection_count(node).first
+    return {'pool' => pool, 'status' => (count == 0 ? 'drained' : 'draining')}
+  end
+
   def drain (node, min_capacity, request_capacity=nil)
     pool = @lookup[node]
     active, draining = @pool_data[pool]
-    if draining.member?(node)
-      count = @p.connection_count(node).first
-      if count == 0
-        return {'pool' => pool, 'status' => 'drained'}
-      else
-        return {'pool' => pool, 'status' => 'draining'}
-      end
-    end
+
+    return _drain_status(pool, node) if draining.member?(node)
 
     capacity = [min_capacity, (request_capacity||-1)].max
-    if (cap = (active - 1.0) / draining) < capacity
+
+    if (cap = (active.size - 1.0) / (active.size + draining.size)) < capacity
       res = {
         'pool' => pool,
         'status' => 'request_failed',
@@ -33,20 +33,20 @@ class ZBroker::Agent
       res['request_capacity'] = request_capacity if request_capacity
       return res
     else
-      drain_node(pool, node)
+      @p.drain_node(pool, node)
       nactive = active - [node]
       ndraining = draining + [node]
       @pool_data[pool] = [nactive, ndraining]
-      # fixme dup
-      return {'pool' => pool, 'status' => 'draining'}
+      return _drain_status(pool, node)
     end
   end
 
   def add (node)
     pool = @lookup[node]
     active, draining = @pool_data[pool]
-    @p.undrain_node(pool, node)
     if draining.include?(node)
+      # fixme out-of-date cache can cause this to fail
+      @p.undrain_node(pool, node)
       nactive = active + [node]
       ndraining = draining - [node]
       @pool_data[pool] = [nactive, ndraining]

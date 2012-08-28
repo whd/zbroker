@@ -48,7 +48,7 @@ class ZBroker::ZeusBridge
         user = 'apionly'
         pass = env.last['pass']
         @agents[envname] = quietly do
-          Agent.new(PoolService.new(endpoint, user, pass))
+          ZBroker::Agent.new(PoolService.new(endpoint, user, pass))
         end
       end
 
@@ -61,12 +61,13 @@ class ZBroker::ZeusBridge
 
       return quietly do
         if request.command == 'remove'
-          agent.drain(node, @min_capacity, (request.format rescue nil))
+          agent.drain(node, @min_capacity, (request.limit rescue nil))
         elsif request.command == 'add'
-          agent.add(node, request)
+          agent.add(node)
         end
       end
-    rescue
+    rescue Exception => err
+      puts err
       return zeus_connection_error
     end
   end
