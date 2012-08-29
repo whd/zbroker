@@ -47,7 +47,6 @@ class ZBroker::Request
   end
 
   def serialize
-    @result ||= @params
     @result.send("to_#{@params['format']}")
   end
 
