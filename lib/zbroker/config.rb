@@ -7,7 +7,7 @@ module ZBroker::Config
     port = nil
     optparse = OptionParser.new do |o|
       o.on('-f', '--config-file FILE',
-           'location of the config file (default /etc/zbroker/zbroker.yaml)') do |arg|
+           'location of the config file (default /etc/zbroker/zbroker.yml)') do |arg|
         file = arg
       end
       o.on('-p', '--port PORT', 'port to bind to') do |arg|
