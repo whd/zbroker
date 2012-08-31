@@ -67,8 +67,10 @@ class ZBroker::ZeusBridge
         end
       end
     rescue Exception => err
-      puts err
-      return zeus_connection_error
+      STDERR.puts err
+      res = zeus_connection_error
+      res['exception'] = err.to_s
+      return res
     end
   end
 end
