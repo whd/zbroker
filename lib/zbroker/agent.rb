@@ -14,10 +14,14 @@ class ZBroker::Agent
     return {'pool' => pool, 'status' => (count == 0 ? 'drained' : 'draining')}
   end
 
+  def _no_pool
+    {'status' => 'request_failed', 'reason' => 'no_pool_found'}
+  end
+
   def drain (node, min_capacity, request_capacity=nil)
     pool = @lookup[node]
     active, draining = @pool_data[pool]
-
+    return _no_pool unless pool
     return _drain_status(pool, node) if draining.member?(node)
 
     capacity = [min_capacity, (request_capacity||-1)].max
@@ -43,6 +47,7 @@ class ZBroker::Agent
 
   def add (node)
     pool = @lookup[node]
+    return _no_pool unless pool
     active, draining = @pool_data[pool]
     if draining.include?(node)
       # fixme out-of-date cache can cause this to fail
