@@ -21,8 +21,7 @@ class ZBroker::ZeusBridge
   end
 
   def zeus_connection_error
-    {'status' => 'request_failed',
-      'reason' => 'zeus_connection_error'}
+    {'status' => 'request_failed', 'reason' => 'zeus_connection_error'}
   end
 
   def quietly
@@ -59,17 +58,21 @@ class ZBroker::ZeusBridge
 
       node = "#{request.ip}:#{request.port}"
 
-      return quietly do
+      ret = quietly do
         if request.command == 'remove'
           agent.drain(node, @min_capacity, (request.limit rescue nil))
         elsif request.command == 'add'
           agent.add(node)
         end
       end
+      ret['node'] = node
+      ret
     rescue Exception => err
       STDERR.puts err
+      STDERR.puts err.backtrace
       res = zeus_connection_error
       res['exception'] = err.to_s
+      ret['node'] = node if node
       return res
     end
   end
