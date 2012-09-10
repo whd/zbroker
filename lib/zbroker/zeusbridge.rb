@@ -17,7 +17,7 @@ class ZBroker::ZeusBridge
   def find_environment (name)
     @environments.select do |k, v|
       k == lcs(k, name)
-    end.max {|a| a.first.length}
+    end.max {|k, v| k.length <=> v.length}
   end
 
   def zeus_connection_error
