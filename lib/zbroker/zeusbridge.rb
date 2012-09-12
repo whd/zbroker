@@ -15,13 +15,20 @@ class ZBroker::ZeusBridge
   end
 
   def find_environment (name)
-    @environments.select do |k, v|
+    STDERR.puts "find environment for #{name}"
+    z = @environments.select do |k, v|
       k == lcs(k, name)
     end.max {|k, v| k.length <=> v.length}
+    STDERR.puts "environment found: #{z.inspect}"
+    z
   end
 
   def zeus_connection_error
     {'status' => 'request_failed', 'reason' => 'zeus_connection_error'}
+  end
+
+  def zeus_environment_error
+    {'status' => 'request_failed', 'reason' => 'no_environment_found'}
   end
 
   def quietly
@@ -39,15 +46,16 @@ class ZBroker::ZeusBridge
   def process (request)
     begin
       hostname = @resolver.getname(request.ip).to_s
+      STDERR.puts hostname
+
       env = find_environment(hostname)
+      return [zeus_environment_error] unless env
+
       envname = env.first
       unless @agents[envname]
         # populate the pool table
-        endpoint = env.last['endpoint']
-        user = 'apionly'
-        pass = env.last['pass']
         @agents[envname] = quietly do
-          ZBroker::Agent.new(PoolService.new(endpoint, user, pass))
+          ZBroker::Agent.new(env)
         end
       end
 
@@ -65,15 +73,16 @@ class ZBroker::ZeusBridge
           agent.add(node)
         end
       end
-      ret['node'] = node
+
+      ret.each {|r| r['node'] = node}
       ret
     rescue Exception => err
       STDERR.puts err
       STDERR.puts err.backtrace
       res = zeus_connection_error
       res['exception'] = err.to_s
-      ret['node'] = node if node
-      return res
+      res['node'] = node if node
+      return [res]
     end
   end
 end

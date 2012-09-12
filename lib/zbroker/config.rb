@@ -1,5 +1,6 @@
 require "yaml"
 require "optparse"
+# fixme: parse environments key for errors
 
 module ZBroker::Config
   def self.load_config
