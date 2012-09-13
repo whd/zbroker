@@ -29,11 +29,14 @@ class ZBroker::Agent
 
   def _drain_status(endpoint, pool, node)
     count = @p[endpoint].connection_count(node).first
-    return {
+    ret = {
       'endpoint' => "#{@envname}:#{endpoint}",
       'pool' => pool,
       'status' => (count == 0 ? 'drained' : 'draining')
     }
+    ret['connection_count'] = count if count > 0
+
+    return ret
   end
 
   def _no_pool
