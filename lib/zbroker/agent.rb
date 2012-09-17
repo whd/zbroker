@@ -43,6 +43,10 @@ class ZBroker::Agent
     [{'status' => 'request_failed', 'reason' => 'no_pool_found'}]
   end
 
+  def _internal_exception
+    {'status' => 'request_failed', 'reason' => 'internal_exception'}
+  end
+
   # return list of [endpoint, pools]
   def lookup (node)
     @endpoints.map do |name|
@@ -52,44 +56,53 @@ class ZBroker::Agent
 
   def drain (node, min_capacity, request_capacity=nil)
     STDERR.puts "draining #{node}"
-    pools = lookup(node)
-    return _no_pool if pools.empty?
-    STDERR.puts "found node in pools #{pools.inspect}"
+    endpoints = lookup(node)
+    return _no_pool if endpoints.empty?
+    STDERR.puts "found node in endpoints #{endpoints.inspect}"
     res = []
 
-    pools.each do |endpoint, pools2|
-      pools2.each do |pool|
-        service = @p[endpoint]
-        # this call shouldn't fail, in theory
-        min_capacity = service.pool_capacity(pool) || min_capacity
-        STDERR.puts "min_capacity: #{min_capacity}"
-        STDERR.puts "endpoint #{endpoint}, pool #{pool}"
-        active, draining = @pool_data[[endpoint, pool]]
+    endpoints.each do |endpoint, pools|
+      pools.each do |pool|
+        begin
+          service = @p[endpoint]
+          # this call shouldn't fail, in theory
+          min_capacity = service.pool_capacity(pool) || min_capacity
+          STDERR.puts "min_capacity: #{min_capacity}"
+          STDERR.puts "endpoint #{endpoint}, pool #{pool}"
+          active, draining = @pool_data[[endpoint, pool]]
 
-        if draining.member?(node)
-          res << _drain_status(endpoint, pool, node)
-          next
-        end
+          if draining.member?(node)
+            res << _drain_status(endpoint, pool, node)
+            next
+          end
 
-        capacity = [min_capacity, (request_capacity||-1)].max
+          capacity = [min_capacity, (request_capacity||-1)].max
 
-        if (cap = (active.size - 1.0) / (active.size + draining.size)) < capacity
-          r = {
-            'endpoint' => "#{@envname}:#{endpoint}",
-            'pool' => pool,
-            'status' => 'request_failed',
-            'reason' => 'capacity_limit',
-            'minimum_capacity' => min_capacity,
-            'drained_capacity' => cap
-          }
-          r['request_capacity'] = request_capacity if request_capacity
-          res << r
-        else
-          service.drain_node(pool, node)
-          nactive = active - [node]
-          ndraining = draining + [node]
-          @pool_data[[endpoint, pool]] = [nactive, ndraining]
-          res << _drain_status(endpoint, pool, node)
+          if (cap = (active.size-1.0)/(active.size+draining.size)) < capacity
+            r = {
+              'endpoint' => "#{@envname}:#{endpoint}",
+              'pool' => pool,
+              'status' => 'request_failed',
+              'reason' => 'capacity_limit',
+              'minimum_capacity' => min_capacity,
+              'drained_capacity' => cap
+            }
+            r['request_capacity'] = request_capacity if request_capacity
+            res << r
+          else
+            service.drain_node(pool, node)
+            nactive = active - [node]
+            ndraining = draining + [node]
+            @pool_data[[endpoint, pool]] = [nactive, ndraining]
+            res << _drain_status(endpoint, pool, node)
+          end
+        rescue Exception => err
+          STDERR.puts err
+          STDERR.puts err.backtrace
+          res = internal_exception
+          res['exception'] = err.to_s
+          res['node'] = node
+          return [res]
         end
       end
     end
@@ -98,12 +111,12 @@ class ZBroker::Agent
 
   def add (node)
     res = []
-    pools = lookup node
+    endpoints = lookup node
     STDERR.puts node
-    STDERR.puts pools
-    return _no_pool if pools.empty?
-    pools.each do |endpoint, pools2|
-      pools2.each do |pool|
+    STDERR.puts endpoints
+    return _no_pool if endpoints.empty?
+    endpoints.each do |endpoint, pools|
+      pools.each do |pool|
         active, draining = @pool_data[[endpoint, pool]]
         if draining.include?(node)
           # fixme out-of-date cache can cause this to fail
