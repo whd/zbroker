@@ -3,8 +3,8 @@ class ZBroker::Service < PoolService
   def initialize (endpoint, user, pass, envdata)
     super(endpoint, user, pass)
 
-    @services = {}
     @capacities = {}
+    @timeouts = {}
 
     (envdata||{}).each do |k, v|
       v['pools'].each do |item|
@@ -18,15 +18,20 @@ class ZBroker::Service < PoolService
         STDERR.puts "pool: #{pool}"
         STDERR.puts "mincap: #{mincap}"
 
-        @services[pool] = mincap
+        @timeouts[pool] = v['timeout']
+        @capacities[pool] = mincap
       end
     end
   end
 
+  def timeout (pool)
+    @timeouts[pool] rescue nil
+  end
+
   def pool_capacity (pool)
     STDERR.puts "looking up pool capacity for #{pool}"
-    STDERR.puts @services.inspect
-    STDERR.puts "#{@services[pool]}"
-    @services[pool] rescue nil
+    STDERR.puts @capacities.inspect
+    STDERR.puts "#{@capacities[pool]}"
+    @capacities[pool].first rescue nil
   end
 end

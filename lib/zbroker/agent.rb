@@ -28,7 +28,16 @@ class ZBroker::Agent
   end
 
   def _drain_status(endpoint, pool, node)
-    count = @p[endpoint].connection_count(node).first
+    service = @p[endpoint]
+    timeout = service.timeout(node)
+    count = service.connection_count(node).first
+    if timeout && count > 0
+      start = Time.now
+      while Time.now < start + timeout && count > 0
+        count = service.connection_count(node).first
+      end
+    end
+
     ret = {
       'endpoint' => "#{@envname}:#{endpoint}",
       'pool' => pool,
@@ -99,7 +108,7 @@ class ZBroker::Agent
         rescue Exception => err
           STDERR.puts err
           STDERR.puts err.backtrace
-          res = internal_exception
+          res = _internal_exception
           res['exception'] = err.to_s
           res['node'] = node
           return [res]
